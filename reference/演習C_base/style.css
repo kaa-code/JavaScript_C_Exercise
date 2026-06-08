@@ -1,0 +1,161 @@
+/* ===== リセット・ベース ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f8f9fa; color: #1a1a1a; }
+
+/* ===== ヘッダー ===== */
+.site-header {
+  background: #1a1a1a;
+  color: #fff;
+  padding: 1.5rem 2rem;
+}
+.site-title    { font-size: 1.75rem; font-weight: 800; }
+.site-subtitle { font-size: 0.9rem; color: #aaa; margin-top: 0.25rem; }
+
+/* ===== メイン ===== */
+.main { max-width: 900px; margin: 0 auto; padding: 2rem 1rem; }
+
+/* ===== フィルタバー ===== */
+.filter-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+.filter-btn {
+  padding: 0.4rem 1rem;
+  border: 2px solid #ddd;
+  border-radius: 9999px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.filter-btn.active,
+.filter-btn:hover {
+  background: #1a1a1a;
+  color: #fff;
+  border-color: #1a1a1a;
+}
+
+/* ===== カードグリッド ===== */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2.5rem;
+}
+
+/* ===== メニューカード ===== */
+.menu-card {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  display: flex;
+  flex-direction: column;
+}
+.card-image {
+  width: 100%;
+  height: 160px;
+  overflow: hidden;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.card-img-placeholder {
+  font-size: 3.5rem;
+  line-height: 1;
+}
+.card-body {
+  padding: 1rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.card-name     { font-size: 1rem; font-weight: 700; }
+.card-price    { font-size: 1.25rem; font-weight: 800; color: #1a1a1a; }
+.card-category {
+  font-size: 0.75rem;
+  color: #fff;
+  background: #6b7280;
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  align-self: flex-start;
+}
+.card-actions  { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+
+.soldout-btn {
+  flex: 1;
+  padding: 0.4rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  transition: all 0.2s;
+}
+.soldout-btn:hover { background: #fee2e2; border-color: #ef4444; color: #ef4444; }
+
+.delete-btn {
+  padding: 0.4rem 0.6rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  transition: all 0.2s;
+}
+.delete-btn:hover { background: #f3f4f6; color: #ef4444; border-color: #ef4444; }
+
+/* 完売状態 */
+.menu-card.sold-out .card-image { filter: grayscale(1); opacity: 0.5; }
+.menu-card.sold-out .card-name  { text-decoration: line-through; color: #9ca3af; }
+.menu-card.sold-out .soldout-btn { background: #fee2e2; border-color: #ef4444; color: #ef4444; }
+
+/* ===== 追加フォーム ===== */
+.add-section { border-top: 2px solid #e5e7eb; padding-top: 1.5rem; }
+.add-title   { font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; }
+.add-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.form-input {
+  padding: 0.5rem 0.75rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: #fff;
+  min-width: 0;
+}
+.form-input:focus { outline: none; border-color: #1a1a1a; }
+#inputName     { flex: 2; min-width: 140px; }
+#inputPrice    { flex: 1; min-width: 90px; }
+#inputCategory { flex: 1; min-width: 100px; cursor: pointer; }
+.url-input     { flex: 3; min-width: 180px; font-size: 0.8rem; color: #6b7280; }
+.add-btn {
+  padding: 0.5rem 1.25rem;
+  background: #1a1a1a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+.add-btn:hover { opacity: 0.75; }

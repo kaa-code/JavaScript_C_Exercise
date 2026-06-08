@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>理工祭メニュー</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <h1 class="site-title">理工祭メニュー</h1>
+      <p class="site-subtitle">出店名をここに入れる</p>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- カテゴリフィルタ -->
+    <div class="filter-bar">
+      <button class="filter-btn active" data-category="all">すべて</button>
+      <button class="filter-btn" data-category="食べ物">食べ物</button>
+      <button class="filter-btn" data-category="飲み物">飲み物</button>
+    </div>
+
+    <!-- メニューカード一覧（JSで生成） -->
+    <div class="card-grid" id="cardGrid"></div>
+
+    <!-- メニュー追加フォーム -->
+    <section class="add-section">
+      <h2 class="add-title">メニューを追加する</h2>
+      <div class="add-form">
+        <input type="text"   id="inputName"     class="form-input" placeholder="メニュー名">
+        <input type="number" id="inputPrice"    class="form-input" placeholder="値段（円）">
+        <select id="inputCategory" class="form-input">
+          <option value="食べ物">食べ物</option>
+          <option value="飲み物">飲み物</option>
+        </select>
+        <input type="url" id="inputImageUrl" class="form-input url-input" placeholder="画像URL（省略可）">
+        <button id="addBtn" class="add-btn">追加</button>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
