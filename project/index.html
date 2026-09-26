@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body data-page="login">
     <div id="app" class="app-shell">
         <main id="authScreen" class="auth-screen" aria-live="polite"></main>
         <div id="storefront" class="storefront" hidden>
@@ -28,6 +28,10 @@
     <script src="data/seed.js"></script>
     <script src="js/repositories/local-storage-repository.js"></script>
     <script src="js/services/app-service.js"></script>
+    <script src="js/utils/format.js"></script>
+    <script src="js/components/markup.js"></script>
+    <script src="js/screens/auth-screen.js"></script>
+    <script src="js/screens/shopping-screen.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

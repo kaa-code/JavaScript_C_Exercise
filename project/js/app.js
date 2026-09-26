@@ -3,10 +3,12 @@
 
   const app = global.ShopApp;
   const service = app.services;
-  const repository = app.repository;
+  const { escapeHtml, formatYen, imageMarkup } = app.utils;
+  const { pageHeading, emptyState, productCard: renderProductCard } = app.components;
+  const currentPage = document.body.dataset.page || 'login';
   const state = {
-    screen: 'login',
-    authMode: 'login',
+    screen: document.body.dataset.page || 'login',
+    authMode: document.body.dataset.page === 'register' ? 'register' : 'login',
     activeTabId: null,
     selectedCartId: null,
     selectedFavoriteType: 'product',
@@ -29,42 +31,65 @@
   const overlayRoot = document.getElementById('overlayRoot');
   const toastRegion = document.getElementById('toastRegion');
 
-  // 関数: HTMLテキストとして安全に表示できるよう特殊文字を変換する。
-  // 引数: value(String|Number|null): 変換対象
-  // 戻り値: HTMLエスケープ済み文字列 (String)
-  function escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+  // 関数: ホーム内の画面をURLハッシュへ対応付ける。
+  // 引数: screen(String): 内部画面名, identifier(String|null): 任意のID
+  // 戻り値: 遷移先ハッシュ (String)
+  function getHomeHash(screen, identifier = null) {
+    if (screen === 'store') return `#store/${encodeURIComponent(identifier || state.storeId || '')}`;
+    if (screen === 'cart-detail') return `#cart/${encodeURIComponent(identifier || state.selectedCartId || '')}`;
+    if (screen === 'checkout') return `#checkout/${encodeURIComponent(identifier || state.selectedCartId || '')}`;
+    if (screen === 'complete') return `#complete/${encodeURIComponent(identifier || '')}`;
+    return `#${screen === 'home' ? '' : screen}`;
   }
 
-  // 関数: 日本円を桁区切りで表示する。
-  // 引数: amount(Number): 表示する金額
-  // 戻り値: 円記号と桁区切りを含む文字列 (String)
-  function formatYen(amount) {
-    return `¥${Number(amount || 0).toLocaleString('ja-JP')}`;
+  // 関数: ホームページのハッシュを状態へ反映する。
+  // 引数: なし
+  // 戻り値: なし
+  function readHomeHash() {
+    if (currentPage !== 'home') return;
+    const [route, identifier] = decodeURIComponent(global.location.hash.slice(1)).split('/');
+    if (route === 'cart') {
+      state.screen = identifier ? 'cart' : 'cart';
+      state.selectedCartId = identifier || null;
+    } else if (route === 'checkout') {
+      state.screen = 'checkout';
+      state.selectedCartId = identifier || null;
+    } else if (route === 'complete') {
+      state.screen = 'checkout';
+      const checkout = service.getOrderHistory().find((record) => record.id === identifier);
+      state.cartAfterPurchase = checkout ? { checkout, orders: checkout.orders } : null;
+    } else if (route === 'favorites' || route === 'orders' || route === 'store') {
+      state.screen = route;
+      if (route === 'store') state.storeId = identifier;
+    } else {
+      state.screen = 'home';
+      state.selectedCartId = null;
+      state.cartAfterPurchase = null;
+    }
   }
 
-  // 関数: 商品または店舗画像の安全なimg要素を作る。
-  // 引数: url(String): 画像URL, alt(String): 画像の代替テキスト, className(String): CSSクラス
-  // 戻り値: 画像要素のHTML (String)
-  function imageMarkup(url, alt, className) {
-    const safeUrl = /^https:\/\//i.test(url || '') ? url : '';
-    return safeUrl
-      ? `<img class="${className}" src="${escapeHtml(safeUrl)}" alt="${escapeHtml(alt)}" loading="lazy">`
-      : `<div class="image-placeholder ${className}" role="img" aria-label="${escapeHtml(alt)}"></div>`;
-  }
-
-  // 関数: ページタイトルと右側操作を描画する。
-  // 引数: title(String): ページ見出し, actions(String): 右側操作のHTML
-  // 戻り値: 見出しHTML (String)
-  function pageHeading(title, actions = '') {
-    return `<div class="page-heading"><h1>${escapeHtml(title)}</h1>${actions}</div>`;
-  }
-
-  // 関数: 空状態と任意の操作を描画する。
-  // 引数: title(String): 見出し, description(String): 説明, actionMarkup(String): 操作HTML
-  // 戻り値: 空状態HTML (String)
-  function emptyState(title, description, actionMarkup = '') {
-    return `<section class="empty-state"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(description)}</p>${actionMarkup}</section>`;
+  // 関数: 通常ページまたはホーム内画面へリンクで遷移する。
+  // 引数: screen(String): 遷移先画面, identifier(String|null): 任意の画面ID
+  // 戻り値: なし
+  function navigate(screen, identifier = null) {
+    const pageUrls = { login: 'index.html', register: 'register.html', settings: 'settings.html', account: 'account.html' };
+    if (pageUrls[screen]) {
+      global.location.href = pageUrls[screen];
+      return;
+    }
+    if (currentPage !== 'home') {
+      global.location.href = `home.html${getHomeHash(screen, identifier)}`;
+      return;
+    }
+    state.menuOpen = false;
+    state.message = '';
+    if (screen === 'store') state.storeId = identifier;
+    if (screen === 'cart-detail') state.selectedCartId = identifier;
+    if (screen === 'checkout') state.selectedCartId = identifier || state.selectedCartId;
+    if (screen !== 'complete') state.cartAfterPurchase = null;
+    const hash = getHomeHash(screen, identifier);
+    if (global.location.hash === hash) render();
+    else global.location.hash = hash;
   }
 
   // 関数: アプリ全体の配色と動き設定をDOMへ適用する。
@@ -88,39 +113,8 @@
   // 引数: なし
   // 戻り値: なし
   function renderAuth() {
-    const isRegister = state.authMode === 'register';
-    authScreen.hidden = false;
     storefront.hidden = true;
-    menuToggle.hidden = true;
-    const registrationFields = isRegister ? `
-      <div class="field field-full">
-        <label for="registerUserId">ユーザーID</label>
-        <div class="inline-input"><input class="input" id="registerUserId" name="userId" autocomplete="username" pattern="[A-Za-z0-9]+" required><button class="button button-outline" type="button" data-action="suggest-id">提案</button></div>
-        <span class="help-text small-text">半角英数字のみ。アカウント作成後は変更できません。</span>
-      </div>
-      <div class="field"><label for="displayName">表示名</label><input class="input" id="displayName" name="displayName" maxlength="10" required autocomplete="nickname"></div>
-      <div class="field"><label for="registerPassword">パスワード</label><input class="input" id="registerPassword" name="password" type="password" minlength="8" required autocomplete="new-password"></div>
-      <div class="field"><label for="registerEmail">メールアドレス <span class="muted">任意</span></label><input class="input" id="registerEmail" name="email" type="email" autocomplete="email"></div>
-      <div class="field"><label for="birthDate">生年月日 <span class="muted">任意</span></label><input class="input" id="birthDate" name="birthDate" type="date" autocomplete="bday"></div>
-      <div class="field"><label for="gender">性別 <span class="muted">任意</span></label><select class="select" id="gender" name="gender"><option value="">回答しない</option><option value="female">女性</option><option value="male">男性</option><option value="other">その他</option></select></div>
-    ` : `
-      <div class="field"><label for="loginUserId">ユーザーID</label><input class="input" id="loginUserId" name="userId" autocomplete="username" required></div>
-      <div class="field"><label for="loginPassword">パスワード</label><input class="input" id="loginPassword" name="password" type="password" autocomplete="current-password" required></div>
-    `;
-    const error = state.message ? `<p class="form-error" role="alert">${escapeHtml(state.message)}</p>` : '<p class="form-error" aria-live="polite"></p>';
-    authScreen.innerHTML = `
-      <section class="auth-panel">
-        <a class="brand-lockup auth-logo" href="#" aria-label="Market Lane"><span class="brand-mark">M</span><span class="brand-name">Market Lane</span></a>
-        <h1>${isRegister ? '新規登録' : 'ログイン'}</h1>
-        <form class="auth-form" data-form="${isRegister ? 'register' : 'login'}" novalidate>
-          <div class="field-grid">${registrationFields}</div>
-          ${error}
-          <button class="button button-primary button-block" type="submit">${isRegister ? 'アカウントを作成' : 'ログイン'}</button>
-        </form>
-        <p class="auth-switch">${isRegister ? 'すでにアカウントをお持ちですか？' : 'はじめて利用しますか？'} <button type="button" data-action="auth-switch">${isRegister ? 'ログイン' : '新規登録'}</button></p>
-        <p class="footer-note">学習用デモです。実サービスでは利用できません。</p>
-      </section>`;
-    if (isRegister) document.getElementById('registerUserId').value = state.suggestedUserId || service.suggestUserId();
+    app.screens.auth.render({ state, authScreen, menuToggle, service, escapeHtml });
   }
 
   // 関数: 共通ヘッダーとアプリ内メニューを描画する。
@@ -131,87 +125,30 @@
     const carts = service.getCarts();
     const cartCount = carts.reduce((count, cart) => count + service.getCartItems(cart.id).reduce((sum, item) => sum + item.quantity, 0), 0);
     header.innerHTML = `
-      <a class="brand-lockup" href="#" data-route="home" aria-label="Market Lane ホーム"><span class="brand-mark">M</span><span class="brand-name">Market Lane</span></a>
-      <div class="header-actions"><span class="header-user">${escapeHtml(user && user.displayName)}</span><button class="button button-outline button-small" type="button" data-route="cart" aria-label="カート、商品数 ${cartCount}">カート <span class="status-badge">${cartCount}</span></button></div>`;
+      <a class="brand-lockup" href="home.html" aria-label="Market Lane ホーム"><span class="brand-mark">M</span><span class="brand-name">Market Lane</span></a>
+      <div class="header-actions"><span class="header-user">${escapeHtml(user && user.displayName)}</span><a class="button button-outline button-small" href="home.html#cart" aria-label="カート、商品数 ${cartCount}">カート <span class="status-badge">${cartCount}</span></a></div>`;
     const links = [
-      ['home', '⌂', 'ホーム'], ['cart', '▣', 'カート'], ['favorites', '♡', 'お気に入り'], ['orders', '◷', '購入履歴'], ['settings', '⚙', '設定']
+      ['home.html', '⌂', 'ホーム'], ['home.html#cart', '▣', 'カート'], ['home.html#favorites', '♡', 'お気に入り'], ['home.html#orders', '◷', '購入履歴'], ['settings.html', '⚙', '設定']
     ];
-    sideMenu.innerHTML = `${links.map((link) => `<button class="menu-link ${state.screen === link[0] ? 'active' : ''}" type="button" data-route="${link[0]}"><span class="menu-link-icon" aria-hidden="true">${link[1]}</span>${link[2]}</button>`).join('')}<button class="menu-link" type="button" data-action="logout"><span class="menu-link-icon" aria-hidden="true">↪</span>ログアウト</button>`;
+    sideMenu.innerHTML = `${links.map((link) => `<a class="menu-link" href="${link[0]}"><span class="menu-link-icon" aria-hidden="true">${link[1]}</span>${link[2]}</a>`).join('')}<button class="menu-link" type="button" data-action="logout"><span class="menu-link-icon" aria-hidden="true">↪</span>ログアウト</button>`;
     sideMenu.hidden = !state.menuOpen;
     menuToggle.hidden = false;
     menuToggle.setAttribute('aria-expanded', String(state.menuOpen));
     menuToggle.setAttribute('aria-label', state.menuOpen ? 'メニューを閉じる' : 'メニューを開く');
   }
 
-  // 関数: 商品カードを描画する。
-  // 引数: product(Object): 店舗とカテゴリを含む商品情報
-  // 戻り値: 商品カードHTML (String)
-  function renderProductCard(product) {
-    const stockText = product.stock === null ? '在庫数の表示なし' : product.stock > 0 ? `残り ${product.stock} 点` : '在庫切れ';
-    return `<article class="product-card">
-      <button class="product-card-trigger" type="button" data-action="open-product" data-id="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)}の詳細">
-        <span class="product-image-wrap">${imageMarkup(product.imageUrl, product.name, 'product-image')}${product.stock !== null ? `<span class="stock-badge">${stockText}</span>` : ''}</span>
-        <span class="product-body"><span class="product-name">${escapeHtml(product.name)}</span><span class="product-meta"><span class="product-price">${formatYen(product.priceYen)}</span><span class="category-badge">${escapeHtml(product.category && product.category.name)}</span></span></span>
-      </button>
-      <div class="card-actions" style="padding: 0 12px 12px"><button class="button button-primary button-small button-block" type="button" data-action="add-cart" data-id="${escapeHtml(product.id)}" ${product.stock === 0 ? 'disabled' : ''}>カートに入れる</button></div>
-    </article>`;
-  }
-
-  // 関数: 検索フォームと商品一覧を含むホーム画面を描画する。
+  // 関数: ホーム画面を画面モジュールへ委譲して描画する。
   // 引数: なし
   // 戻り値: なし
   function renderHome() {
-    const data = service.getSnapshot();
-    const tabs = service.getShoppingTabs();
-    if (!tabs.length) {
-      const created = service.createShoppingTab();
-      state.activeTabId = created.id;
-      return renderHome();
-    }
-    if (!tabs.some((tab) => tab.id === state.activeTabId)) {
-      state.activeTabId = tabs[0].id;
-      state.searchExpanded = Boolean(tabs[0].viewState && tabs[0].viewState.searchExpanded);
-    }
-    const activeTab = tabs.find((tab) => tab.id === state.activeTabId);
-    const criteria = { storeId: '', query: '', categoryIds: [], ...(activeTab.searchCriteria || {}) };
-    const filteredProducts = service.searchProducts(criteria);
-    const storeOptions = data.stores.filter((store) => store.status === 'active').map((store) => `<option value="${escapeHtml(store.name)}">`).join('');
-    const categoryFilters = data.categories.map((category) => `<label class="check-option"><input type="checkbox" name="categoryIds" value="${escapeHtml(category.id)}" ${criteria.categoryIds.includes(category.id) ? 'checked' : ''}>${escapeHtml(category.name)}</label>`).join('');
-    const sections = data.stores.filter((store) => store.status === 'active' && (!criteria.storeId || criteria.storeId === store.id)).map((store) => {
-      const products = filteredProducts.filter((product) => product.storeId === store.id);
-      if (!products.length) return '';
-      return `<section class="store-section"><div class="store-heading"><button class="store-title-button" type="button" data-action="open-store" data-id="${escapeHtml(store.id)}">${escapeHtml(store.name)} <span aria-hidden="true">↗</span></button></div><div class="product-row">${products.map(renderProductCard).join('')}</div></section>`;
-    }).join('');
-    mainContent.innerHTML = `
-      ${pageHeading('ショッピング', '<span class="status-badge">税込価格</span>')}
-      <section class="browser-frame" aria-label="ショッピング">
-        <div class="browser-tabbar"><div class="browser-tab-controls" aria-hidden="true"><span></span><span></span><span></span></div><div class="tab-list" role="tablist" aria-label="ショッピングタブ">${tabs.map((tab, index) => `<span class="tab-item ${tab.id === activeTab.id ? 'active' : ''}"><button id="shopping-tab-${index + 1}" class="tab-button ${tab.id === activeTab.id ? 'active' : ''}" type="button" role="tab" aria-selected="${tab.id === activeTab.id}" aria-controls="shopping-panel" data-action="select-tab" data-id="${escapeHtml(tab.id)}">${escapeHtml(tab.label)}</button>${tabs.length > 1 ? `<button class="tab-close" type="button" data-action="close-tab" data-id="${escapeHtml(tab.id)}" aria-label="${escapeHtml(tab.label)}を閉じる">×</button>` : ''}</span>`).join('')}${tabs.length < 2 ? '<button class="tab-button tab-add" type="button" data-action="add-tab" aria-label="ショッピングタブを追加">+</button>' : ''}</div></div>
-        <div id="shopping-panel" class="browser-panel" role="tabpanel" aria-labelledby="shopping-tab-${tabs.findIndex((tab) => tab.id === activeTab.id) + 1}">
-          <div class="tab-panel-heading"><span class="muted small-text">${filteredProducts.length} 商品</span></div>
-          <section class="search-area"><button class="search-toggle" type="button" data-action="toggle-search" aria-expanded="${state.searchExpanded}"><span class="search-toggle-label"><span class="search-icon" aria-hidden="true"></span>検索</span><span aria-hidden="true">${state.searchExpanded ? '−' : '+'}</span></button>
-            ${state.searchExpanded ? `<form class="search-form" data-form="search"><div class="field"><label for="shopFilter">店舗</label><input class="input" id="shopFilter" name="storeName" list="storeOptions" placeholder="すべての店舗" value="${escapeHtml(data.stores.find((store) => store.id === criteria.storeId)?.name || '')}"><datalist id="storeOptions"><option value="すべて" label="すべての店舗"></option>${storeOptions}</datalist></div><div class="field"><label for="productQuery">商品名・説明</label><input class="input" id="productQuery" name="query" value="${escapeHtml(criteria.query)}" placeholder="例: 柑橘、焙煎"></div><div class="field"><span class="field-label">カテゴリ（複数選択可）</span><div class="check-row">${categoryFilters || '<span class="muted small-text">カテゴリはありません</span>'}</div></div><button class="button button-primary" type="submit">検索する</button></form>` : ''}
-          </section>
-          ${sections || emptyState('商品が見つかりません', '検索条件を変えるか、条件をクリアしてもう一度お試しください。', '<button class="button button-outline" type="button" data-action="clear-search">条件をクリア</button>')}
-        </div>
-      </section>`;
+    app.screens.shopping.renderHome({ state, service, mainContent, components: app.components, utils: app.utils });
   }
 
-  // 関数: 店舗ページと店舗内検索を描画する。
+  // 関数: 店舗画面を画面モジュールへ委譲して描画する。
   // 引数: なし
   // 戻り値: なし
   function renderStore() {
-    const data = service.getSnapshot();
-    const store = data.stores.find((record) => record.id === state.storeId);
-    if (!store) return navigate('home');
-    const filters = state.storeFilters || { query: '', categoryIds: [] };
-    const products = service.searchProducts({ ...filters, storeId: store.id });
-    const categories = data.categories.map((category) => `<label class="check-option"><input type="checkbox" name="storeCategoryIds" value="${escapeHtml(category.id)}" ${filters.categoryIds.includes(category.id) ? 'checked' : ''}>${escapeHtml(category.name)}</label>`).join('');
-    mainContent.innerHTML = `
-      <div class="inline-actions" style="margin-bottom: 18px"><button class="button button-outline button-small" type="button" data-route="home">← ショッピングへ戻る</button></div>
-      <section class="store-page-hero"><div class="store-page-copy"><h1>${escapeHtml(store.name)}</h1><p>${escapeHtml(store.description)}</p><button class="button button-primary button-small" type="button" data-action="toggle-store-favorite" data-id="${escapeHtml(store.id)}">${service.isFavorite('store', store.id) ? '♥ お気に入り済み' : '♡ お気に入りに入れる'}</button><div class="store-info-line">${store.address ? `<span>${escapeHtml(store.address)}</span>` : ''}${store.phone ? `<span>${escapeHtml(store.phone)}</span>` : ''}</div></div><div class="store-page-image">${imageMarkup(store.imageUrl, store.name, 'store-cover')}</div></section>
-      <div class="section-heading"><h2>この店の商品</h2><span class="muted small-text">${products.length} 商品</span></div>
-      <section class="search-area"><button class="search-toggle" type="button" data-action="toggle-store-search" aria-expanded="${state.storeSearchExpanded}"><span class="search-toggle-label"><span class="search-icon" aria-hidden="true"></span>商品を検索</span><span aria-hidden="true">${state.storeSearchExpanded ? '−' : '+'}</span></button>${state.storeSearchExpanded ? `<form class="search-form" data-form="store-search"><div class="field"><label for="storeQuery">商品名・説明</label><input class="input" id="storeQuery" name="query" value="${escapeHtml(filters.query)}"></div><div class="field"><span class="field-label">カテゴリ</span><div class="check-row">${categories}</div></div><button class="button button-primary" type="submit">検索する</button></form>` : ''}</section>
-      ${products.length ? `<div class="product-row store-product-row">${products.map(renderProductCard).join('')}</div>` : emptyState('該当する商品がありません', '検索語やカテゴリを変更してください。')}`;
+    app.screens.shopping.renderStore({ state, service, mainContent, components: app.components, utils: app.utils, navigate });
   }
 
   // 関数: カート一覧または選択されたカートの内容を描画する。
@@ -235,7 +172,7 @@
     const itemCount = items.reduce((total, item) => total + item.quantity, 0);
     const total = items.reduce((sum, item) => sum + item.lineTotalYen, 0);
     const itemRows = items.map((item) => `<article class="cart-row">${imageMarkup(item.imageUrl, item.name, 'cart-row-image')}<div><p class="cart-row-name">${escapeHtml(item.name)}</p><p class="muted small-text">${escapeHtml(item.store.name)} · ${formatYen(item.priceYen)}</p><span class="product-price">${formatYen(item.lineTotalYen)}</span></div><div class="quantity-control"><button class="quantity-button" type="button" data-action="quantity" data-id="${escapeHtml(item.id)}" data-cart="${escapeHtml(cart.id)}" data-delta="-1" aria-label="${escapeHtml(item.name)}の数量を減らす">−</button><span class="quantity-value">${item.quantity}</span><button class="quantity-button" type="button" data-action="quantity" data-id="${escapeHtml(item.id)}" data-cart="${escapeHtml(cart.id)}" data-delta="1" aria-label="${escapeHtml(item.name)}の数量を増やす">＋</button></div></article>`).join('');
-    mainContent.innerHTML = `${pageHeading(cart.name, '<button class="button button-outline button-small" type="button" data-action="back-carts">← カート一覧</button>')}<p class="muted">${itemCount} 点</p>${itemRows ? `<div class="list-stack">${itemRows}</div><div class="cart-summary"><div class="cart-summary-inner"><div class="total-line"><span>商品合計（${itemCount}点）</span><strong>${formatYen(total)}</strong></div><button class="button button-primary button-block" type="button" data-action="checkout" data-id="${escapeHtml(cart.id)}" ${items.length ? '' : 'disabled'}>購入内容を確認する</button></div></div>` : emptyState('このカートは空です', 'ショッピングから商品を追加してください。', '<button class="button button-primary" type="button" data-route="home">商品を探す</button>')}`;
+    mainContent.innerHTML = `${pageHeading(cart.name, '<a class="button button-outline button-small" href="home.html#cart">← カート一覧</a>')}<p class="muted">${itemCount} 点</p>${itemRows ? `<div class="list-stack">${itemRows}</div><div class="cart-summary"><div class="cart-summary-inner"><div class="total-line"><span>商品合計（${itemCount}点）</span><strong>${formatYen(total)}</strong></div><button class="button button-primary button-block" type="button" data-action="checkout" data-id="${escapeHtml(cart.id)}" ${items.length ? '' : 'disabled'}>購入内容を確認する</button></div></div>` : emptyState('このカートは空です', 'ショッピングから商品を追加してください。', '<a class="button button-primary" href="home.html">商品を探す</a>')}`;
   }
 
   // 関数: カートの購入確認または購入完了を描画する。
@@ -250,7 +187,7 @@
     if (!cart) return navigate('cart');
     const items = service.getCartItems(cart.id);
     const total = items.reduce((sum, item) => sum + item.lineTotalYen, 0);
-    mainContent.innerHTML = `${pageHeading('購入内容の確認', '<button class="button button-outline button-small" type="button" data-route="cart" data-cart-back="true">← カートに戻る</button>')}<section class="settings-section"><div class="panel-heading" style="justify-content:space-between"><h2>${escapeHtml(cart.name)}</h2><span class="muted small-text">模擬購入</span></div><div class="list-stack">${items.map((item) => `<div class="order-item-line"><span>${escapeHtml(item.name)} × ${item.quantity}</span><strong>${formatYen(item.lineTotalYen)}</strong></div>`).join('')}</div><div class="total-line" style="margin-top:18px;padding-top:15px;border-top:1px solid var(--line)"><span>合計（税込）</span><strong>${formatYen(total)}</strong></div><button class="button button-primary button-block" type="button" data-action="confirm-purchase" data-id="${escapeHtml(cart.id)}" ${items.length ? '' : 'disabled'}>購入を確定する</button></section>`;
+    mainContent.innerHTML = `${pageHeading('購入内容の確認', '<a class="button button-outline button-small" href="home.html#cart">← カートに戻る</a>')}<section class="settings-section"><div class="panel-heading" style="justify-content:space-between"><h2>${escapeHtml(cart.name)}</h2><span class="muted small-text">模擬購入</span></div><div class="list-stack">${items.map((item) => `<div class="order-item-line"><span>${escapeHtml(item.name)} × ${item.quantity}</span><strong>${formatYen(item.lineTotalYen)}</strong></div>`).join('')}</div><div class="total-line" style="margin-top:18px;padding-top:15px;border-top:1px solid var(--line)"><span>合計（税込）</span><strong>${formatYen(total)}</strong></div><button class="button button-primary button-block" type="button" data-action="confirm-purchase" data-id="${escapeHtml(cart.id)}" ${items.length ? '' : 'disabled'}>購入を確定する</button></section>`;
   }
 
   // 関数: 商品または店舗のお気に入り一覧を描画する。
@@ -275,7 +212,7 @@
   function renderOrders() {
     const history = service.getOrderHistory();
     const content = history.map((checkout) => `<article class="order-card"><div class="panel-heading" style="justify-content:space-between"><strong>${new Date(checkout.createdAt).toLocaleString('ja-JP')}</strong><span class="status-badge">模擬購入</span></div>${checkout.orders.map((order) => `<div class="order-store">${escapeHtml(order.store && order.store.name)} <span class="muted">· ${formatYen(order.totalYen)}</span></div>${order.items.map((item) => `<div class="order-item-line"><span>${escapeHtml(item.productNameSnapshot)} × ${item.quantity}</span><span>${formatYen(item.unitPriceYenSnapshot * item.quantity)}</span></div>`).join('')}`).join('')}</article>`).join('');
-    mainContent.innerHTML = `${pageHeading('購入履歴')}${content || emptyState('購入履歴はまだありません', '購入した商品がここに表示されます。', '<button class="button button-primary" type="button" data-route="home">商品を探す</button>')}`;
+    mainContent.innerHTML = `${pageHeading('購入履歴')}${content || emptyState('購入履歴はまだありません', '購入した商品がここに表示されます。', '<a class="button button-primary" href="home.html">商品を探す</a>')}`;
   }
 
   // 関数: UI設定またはセキュリティ設定画面を描画する。
@@ -295,7 +232,7 @@
     } else if (state.settingsSection === 'data') {
       content = `<section class="settings-section"><h2>データのバックアップ</h2><p class="muted">現在のブラウザーデータをJSONファイルに書き出します。デモ用パスワード情報も含まれます。ファイルを他人と共有しないでください。</p><button class="button button-primary" type="button" data-action="export-data">JSONを書き出す</button></section><section class="settings-section"><h2>JSONから復元</h2><p class="muted">インポートは現在のアプリデータをすべて置き換え、ログアウトします。</p><label class="button button-outline" for="importFile">JSONファイルを選ぶ</label><input id="importFile" type="file" accept="application/json,.json" data-input="import-file" hidden><p class="form-error" aria-live="polite"></p></section></section>`;
     } else {
-      content = `<section class="settings-section"><h2>アカウント</h2><div class="settings-row"><span>表示名</span><strong>${escapeHtml(user.displayName)}</strong></div><div class="settings-row"><span>ユーザーID</span><strong>${escapeHtml(user.userId)}</strong></div><button class="button button-outline" type="button" data-route="account">アカウント情報を編集</button></section><section class="settings-section"><h2>ログアウト</h2><p class="muted">次回はユーザーIDとパスワードでログインします。</p><button class="button button-danger" type="button" data-action="logout">ログアウト</button></section>`;
+      content = `<section class="settings-section"><h2>アカウント</h2><div class="settings-row"><span>表示名</span><strong>${escapeHtml(user.displayName)}</strong></div><div class="settings-row"><span>ユーザーID</span><strong>${escapeHtml(user.userId)}</strong></div><a class="button button-outline" href="account.html">アカウント情報を編集</a></section><section class="settings-section"><h2>ログアウト</h2><p class="muted">次回はユーザーIDとパスワードでログインします。</p><button class="button button-danger" type="button" data-action="logout">ログアウト</button></section>`;
     }
     mainContent.innerHTML = `${pageHeading('設定')}<div class="settings-layout"><nav class="settings-nav" aria-label="設定項目">${sections.map((section) => `<button class="${state.settingsSection === section[0] ? 'active' : ''}" type="button" data-action="settings-section" data-value="${section[0]}">${section[1]}</button>`).join('')}</nav><div class="settings-content">${content}</div></div>`;
   }
@@ -305,7 +242,7 @@
   // 戻り値: なし
   function renderAccount() {
     const user = service.getCurrentUser();
-    mainContent.innerHTML = `${pageHeading('アカウント', '<button class="button button-outline button-small" type="button" data-route="settings">← 設定に戻る</button>')}<section class="account-panel"><h2>プロフィール</h2><p class="muted small-text">ユーザーIDは変更できません。</p><form class="field-grid" data-form="profile"><div class="field"><label for="accountUserId">ユーザーID</label><input class="input" id="accountUserId" value="${escapeHtml(user.userId)}" disabled></div><div class="field"><label for="accountDisplayName">表示名（10文字以内）</label><input class="input" id="accountDisplayName" name="displayName" maxlength="10" value="${escapeHtml(user.displayName)}" required></div><div class="field"><label for="accountEmail">メールアドレス</label><input class="input" id="accountEmail" name="email" type="email" value="${escapeHtml(user.email || '')}"></div><div class="field"><label for="accountBirthDate">生年月日</label><input class="input" id="accountBirthDate" name="birthDate" type="date" value="${escapeHtml(user.birthDate || '')}"></div><div class="field"><label for="accountGender">性別</label><select class="select" id="accountGender" name="gender"><option value="" ${!user.gender ? 'selected' : ''}>回答しない</option><option value="female" ${user.gender === 'female' ? 'selected' : ''}>女性</option><option value="male" ${user.gender === 'male' ? 'selected' : ''}>男性</option><option value="other" ${user.gender === 'other' ? 'selected' : ''}>その他</option></select></div><div class="field-full"><p class="form-error" aria-live="polite"></p><button class="button button-primary" type="submit">変更を保存</button></div></form></section><section class="settings-section" style="margin-top:16px"><h2>アカウントの削除</h2><p class="muted">個人情報とログイン情報を匿名化し、統計用の注文記録は保持します。お気に入りとカートデータもJSON内に残ります。削除後は再ログインできません。</p><button class="button button-danger" type="button" data-action="delete-account">アカウントを削除</button></section>`;
+    mainContent.innerHTML = `${pageHeading('アカウント', '<a class="button button-outline button-small" href="settings.html">← 設定に戻る</a>')}<section class="account-panel"><h2>プロフィール</h2><p class="muted small-text">ユーザーIDは変更できません。</p><form class="field-grid" data-form="profile"><div class="field"><label for="accountUserId">ユーザーID</label><input class="input" id="accountUserId" value="${escapeHtml(user.userId)}" disabled></div><div class="field"><label for="accountDisplayName">表示名（10文字以内）</label><input class="input" id="accountDisplayName" name="displayName" maxlength="10" value="${escapeHtml(user.displayName)}" required></div><div class="field"><label for="accountEmail">メールアドレス</label><input class="input" id="accountEmail" name="email" type="email" value="${escapeHtml(user.email || '')}"></div><div class="field"><label for="accountBirthDate">生年月日</label><input class="input" id="accountBirthDate" name="birthDate" type="date" value="${escapeHtml(user.birthDate || '')}"></div><div class="field"><label for="accountGender">性別</label><select class="select" id="accountGender" name="gender"><option value="" ${!user.gender ? 'selected' : ''}>回答しない</option><option value="female" ${user.gender === 'female' ? 'selected' : ''}>女性</option><option value="male" ${user.gender === 'male' ? 'selected' : ''}>男性</option><option value="other" ${user.gender === 'other' ? 'selected' : ''}>その他</option></select></div><div class="field-full"><p class="form-error" aria-live="polite"></p><button class="button button-primary" type="submit">変更を保存</button></div></form></section><section class="settings-section" style="margin-top:16px"><h2>アカウントの削除</h2><p class="muted">個人情報とログイン情報を匿名化し、統計用の注文記録は保持します。お気に入りとカートデータもJSON内に残ります。削除後は再ログインできません。</p><button class="button button-danger" type="button" data-action="delete-account">アカウントを削除</button></section>`;
   }
 
   // 関数: 現在のアプリ画面を選択して描画する。
@@ -314,11 +251,22 @@
   function render() {
     applySettings();
     const user = service.getCurrentUser();
-    if (!user) {
-      state.authMode = state.screen === 'register' ? 'register' : 'login';
+    if (currentPage === 'login' || currentPage === 'register') {
+      if (user) {
+        global.location.replace('home.html');
+        return;
+      }
+      state.authMode = currentPage === 'register' ? 'register' : 'login';
       renderAuth();
       return;
     }
+    if (!user) {
+      global.location.replace('index.html');
+      return;
+    }
+    if (currentPage === 'settings') state.screen = 'settings';
+    else if (currentPage === 'account') state.screen = 'account';
+    else readHomeHash();
     authScreen.hidden = true;
     storefront.hidden = false;
     renderChrome();
@@ -327,19 +275,6 @@
       favorites: renderFavorites, orders: renderOrders, settings: renderSettings, account: renderAccount
     };
     (renderers[state.screen] || renderHome)();
-  }
-
-  // 関数: 指定画面へ移動し、必要な表示状態を更新する。
-  // 引数: screen(String): 遷移先画面キー
-  // 戻り値: なし
-  function navigate(screen) {
-    state.screen = screen;
-    state.menuOpen = false;
-    state.message = '';
-    state.cartAfterPurchase = null;
-    render();
-    mainContent.focus({ preventScroll: true });
-    global.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   // 関数: 画面下部に自動で消える通知を表示する。
@@ -419,9 +354,7 @@
     const values = new FormData(form);
     try {
       await service.login(values.get('userId'), values.get('password'));
-      state.screen = 'home';
-      state.message = '';
-      render();
+      global.location.href = 'home.html';
     } catch (error) {
       state.message = error.message;
       renderAuth();
@@ -438,11 +371,7 @@
     const profile = Object.fromEntries(values.entries());
     try {
       await service.register(profile);
-      state.screen = 'home';
-      state.activeTabId = service.getShoppingTabs()[0]?.id;
-      state.message = '';
-      render();
-      showToast('アカウントを作成しました。');
+      global.location.href = 'home.html';
     } catch (error) {
       state.message = error.message;
       const saved = Object.fromEntries(values.entries());
@@ -550,7 +479,7 @@
     try {
       state.cartAfterPurchase = service.purchaseCart(cartId);
       state.screen = 'checkout';
-      render();
+      navigate('complete', state.cartAfterPurchase.checkout.id);
     } catch (error) {
       showToast(error.message, 'error');
     }
@@ -578,10 +507,7 @@
     if (!file) return;
     try {
       service.importData(await file.text());
-      state.screen = 'login';
-      state.authMode = 'login';
-      state.activeTabId = null;
-      render();
+      global.location.href = 'index.html';
       showToast('データを読み込みました。再度ログインしてください。');
     } catch (error) {
       showToast(error.message, 'error');
@@ -595,6 +521,8 @@
   function handleClick(event) {
     const target = event.target.closest('[data-action], [data-route]');
     if (!target) return;
+    if (target.matches('a[href]')) return;
+    if (target.matches('a[href]')) return;
     if (target.dataset.action === 'close-tab') {
       event.stopPropagation();
       try { service.closeShoppingTab(target.dataset.id); state.activeTabId = service.getShoppingTabs()[0].id; render(); } catch (error) { showToast(error.message, 'error'); }
@@ -621,22 +549,22 @@
       'toggle-store-favorite': () => { service.toggleFavorite('store', target.dataset.id); renderStore(); showToast('お気に入りを更新しました。'); },
       'favorite-type': () => { state.selectedFavoriteType = target.dataset.value; renderFavorites(); },
       'create-cart': () => { const name = global.prompt('新しいカート名'); if (name) { service.createCart(name); renderCart(); } },
-      'select-cart': () => { state.selectedCartId = target.dataset.id; renderCart(); },
-      'back-carts': () => { state.selectedCartId = null; renderCart(); },
+      'select-cart': () => navigate('cart-detail', target.dataset.id),
+      'back-carts': () => navigate('cart'),
       'rename-cart': () => { const cart = service.getCarts().find((record) => record.id === target.dataset.id); const name = global.prompt('カート名を変更', cart.name); if (name) { service.renameCart(cart.id, name); renderCart(); } },
       'delete-cart': () => { if (global.confirm('このカートと中の商品を削除しますか？')) { try { service.deleteCart(target.dataset.id); renderCart(); } catch (error) { showToast(error.message, 'error'); } } },
       quantity: () => { const current = Number(target.parentElement.querySelector('.quantity-value').textContent); try { service.updateCartItem(target.dataset.cart, target.dataset.id, current + Number(target.dataset.delta)); renderCart(); } catch (error) { showToast(error.message, 'error'); } },
-      checkout: () => { state.selectedCartId = target.dataset.id; navigate('checkout'); },
+      checkout: () => navigate('checkout', target.dataset.id),
       'confirm-purchase': () => confirmPurchase(target.dataset.id),
-      'finish-home': () => { state.cartAfterPurchase = null; navigate('home'); },
-      'finish-cart': () => { state.cartAfterPurchase = null; state.selectedCartId = null; navigate('cart'); },
+      'finish-home': () => navigate('home'),
+      'finish-cart': () => { state.selectedCartId = null; navigate('cart'); },
       'settings-section': () => { state.settingsSection = target.dataset.value; renderSettings(); },
       theme: () => { const user = service.getCurrentUser(); service.updateSetting(user.id, 'themeMode', target.dataset.value); renderSettings(); applySettings(); },
       'custom-color': () => { const user = service.getCurrentUser(); service.updateSetting(user.id, 'customColor', target.dataset.value); renderSettings(); applySettings(); },
       'reset-setting': () => { const user = service.getCurrentUser(); service.resetSettings(user.id, target.dataset.key || null); renderSettings(); applySettings(); showToast('設定をリセットしました。'); },
       'export-data': exportData,
-      logout: () => { service.logout(); state.screen = 'login'; state.authMode = 'login'; state.menuOpen = false; render(); },
-      'delete-account': () => { if (global.confirm('本当にアカウントを削除しますか？')) { if (global.confirm('削除後はログインできません。匿名化した注文データとお気に入り/カートは保存されます。削除を確定しますか？')) { service.deleteAccount(); state.screen = 'login'; state.authMode = 'login'; render(); showToast('アカウントを匿名化しました。'); } } },
+      logout: () => { service.logout(); global.location.href = 'index.html'; },
+      'delete-account': () => { if (global.confirm('本当にアカウントを削除しますか？')) { if (global.confirm('削除後はログインできません。匿名化した注文データとお気に入り/カートは保存されます。削除を確定しますか？')) { service.deleteAccount(); global.location.href = 'index.html'; } } },
       'close-overlay': closeOverlay
     };
     actions[target.dataset.action]?.();
@@ -708,7 +636,12 @@
     overlayRoot.addEventListener('click', handleOverlayClick);
     menuToggle.addEventListener('click', (event) => { event.preventDefault(); state.menuOpen = !state.menuOpen; renderChrome(); });
     document.addEventListener('keydown', handleKeydown);
-    state.screen = service.getCurrentUser() ? 'home' : 'login';
+    global.addEventListener('hashchange', () => {
+      readHomeHash();
+      render();
+      global.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    readHomeHash();
     render();
   }
 
