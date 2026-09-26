@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f5f4ef">
-    <title>Market Lane | ログイン</title>
+    <title>Market Lane | ホーム</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -12,17 +12,26 @@
 </head>
 <body>
     <div id="app" class="app-shell">
-        <main id="authScreen" class="auth-screen" aria-live="polite"></main>
+        <div id="storefront" class="storefront">
+            <header id="siteHeader" class="site-header"></header>
+            <main id="mainContent" class="main-content" tabindex="-1"></main>
+            <nav id="sideMenu" class="side-menu" aria-label="メインメニュー" hidden></nav>
+            <button id="menuToggle" class="menu-toggle" type="button" aria-label="メニューを開く" aria-expanded="false" hidden>
+                <span class="menu-toggle-icon" aria-hidden="true"><span></span><span></span></span>
+            </button>
+        </div>
+        <div id="overlayRoot"></div>
         <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
     </div>
 
-    <!-- 依存関係の順に読み込みます -->
+    <!-- スクリプトの読み込み順序 -->
     <script src="data/seed.js"></script>
     <script src="js/repositories/local-storage-repository.js"></script>
     <script src="js/services/app-service.js"></script>
     <script src="js/utils/ui-utils.js"></script>
     <script src="js/components/ui-components.js"></script>
     <script src="js/screens/auth-screen.js"></script>
+    <script src="js/screens/home-screens.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
